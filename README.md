@@ -10,9 +10,10 @@
 
 ## Prereqs
 
-- [Install Docker for Windows](https://docs.docker.com/docker-for-windows/install/)
-- [Test your Docker Installation](https://docs.docker.com/docker-for-windows/#test-your-installation)
-- [Docker Compose already included in Docker Desktop for Windows]
+- [Install Docker for Mac](https://docs.docker.com/docker-for-mac/install/)
+- [Test your Docker Installation](https://docs.docker.com/docker-for-mac/#test-your-installation)
+- [Docker Compose already included in Docker Desktop for Mac]
+- Maven: run `brew install maven` on Mac
 
 ## Run
 
@@ -44,43 +45,37 @@ TaskManagers RPC port 6122
 TaskManagers Data port 6121
 ```
 
-## Create a topic
-```
-Change flink-kafka-docker-example_kafka_1 to local kafka container name
+## Build and Run the Flink Job
 
-docker exec flink-kafka-docker-example_kafka_1 kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic my-topic
+### 1. Build the JAR
+
+First, build the JAR file using Maven:
+```
+mvn clean package
+```
+Then copy the jar into your jobmanager
+```
+docker cp target/flink-kafka-example-1.0-SNAPSHOT.jar $(docker ps -qf name=jobmanager):/opt/flink/lib/flink-kafka-example-1.0-SNAPSHOT.jar
+```
+Then you can run the jar
+```
+docker exec -it $(docker ps -qf name=jobmanager) flink run -d /opt/flink/lib/flink-kafka-example-1.0-SNAPSHOT.jar
+```
+You should be able to see the job running in the Jobmanager UI and also via CLI:
+```
+docker exec -it $(docker ps -qf name=jobmanager) flink list
+```
+If you want to see job logs, you'll find them in the taskmanager. In this case, you won't see too much interesting there if job is running correctly:
+```
+docker logs -f $(docker ps -qf name=taskmanager)
+```
+Lastly, check the data in kafka. First input topic:
+```
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic input-topic --from-beginning
+```
+Then output topic:
+```
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic output-topic --from-beginning
 ```
 
-## List existing topics
-```
-Change flink-kafka-docker-example_kafka_1 to local kafka container name
-
-docker exec flink-kafka-docker-example_kafka_1 kafka-topics.sh --bootstrap-server localhost:9092 --list
-```
-
-
-## Push data to topics in interactive mode
-```
-Change flink-kafka-docker-example_kafka_1 to local kafka container name
-
-docker exec -it flink-kafka-docker-example_kafka_1 kafka-console-producer.sh --broker-list localhost:9092 --topic my-topic
-```
-## Pull data from topics
-```
-Change flink-kafka-docker-example_kafka_1 to local kafka container name
-
-docker exec flink-kafka-docker-example_kafka_1 kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic my-topic --from-beginning
-```
-
-## Copy app jar to flink job manager container or use flink UI to submit job
-```
-docker cp ./target/flink-kakfa-example-1.0-SNAPSHOT.jar flink-kafka-docker-example_jobmanager_1:/tmp/flink-kakfa-example-1.0-SNAPSHOT.jar
-```
-## Run flink jobs or use flink UI to submit job
-```
-docker exec flink-kafka-docker-example_jobmanager_1 flink run -c com.ibm.wh.engagement.App /tmp/flink-kakfa-example-1.0-SNAPSHOT.jar
-```
-## List running flink jobs
-```
-docker exec flink-kafka-docker-example_jobmanager_1 flink list
-```
+You can follow the streams and see the words are reveresed in the output topic.
